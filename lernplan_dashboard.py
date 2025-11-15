@@ -58,11 +58,13 @@ def save_data_to_github(data):
         "content": encoded_content,
         "sha": sha
     }
-    put_resp = requests.put(API_URL, headers=HEADERS, json=payload)
-    return put_resp.status_code in [200, 201]
+    requests.put(API_URL, headers=HEADERS, json=payload)
 
 # ------------------- Daten laden -------------------
-data = load_data_from_github()
+if "data" not in st.session_state:
+    st.session_state["data"] = load_data_from_github()
+
+data = st.session_state["data"]
 
 # Reset für neuen Tag
 if data["last_update"] != str(datetime.date.today()):
@@ -94,8 +96,9 @@ with col1:
         st.write("### Tagesaufgaben")
         for idx, task in enumerate(data["tasks"]):
             checked = st.checkbox(f"{task['name']} ({task['duration']}h)", value=task["done"], key=f"task_{idx}")
-            task["done"] = checked
-        save_data_to_github(data)
+            if checked != task["done"]:
+                task["done"] = checked
+                save_data_to_github(data)
 
     # Berechnung: heutige Aufgaben aus Wochenplaner + manuelle Aufgaben
     today_en = datetime.date.today().strftime("%A")
@@ -120,9 +123,6 @@ with col1:
 
     progress_ratio = completed_duration / total_duration if total_duration > 0 else 0
 
-    # Debug-Ausgabe
-    st.write(f"DEBUG: total={total_duration}, completed={completed_duration}, ratio={progress_ratio:.2f}")
-
     # Diagramm anzeigen (auch wenn leer)
     if total_duration > 0:
         fig = px.pie(
@@ -132,7 +132,6 @@ with col1:
             color_discrete_sequence=["#00cc96", "#ef553b"]
         )
     else:
-        # Leeres Diagramm mit neutraler Farbe
         fig = px.pie(
             names=["Keine Daten"],
             values=[1],
@@ -161,8 +160,9 @@ with col2:
         st.write("### Wochenplan")
         for idx, wp in enumerate(data["weekly_plan"]):
             checked = st.checkbox(f"{wp['day']}: {wp['activity']} ({wp['duration']}h)", value=wp["done"], key=f"wp_{idx}")
-            wp["done"] = checked
-        save_data_to_github(data)
+            if checked != wp["done"]:
+                wp["done"] = checked
+                save_data_to_github(data)
 
     weekly_total = sum(wp["duration"] for wp in data["weekly_plan"])
     weekly_completed = sum(wp["duration"] for wp in data["weekly_plan"] if wp.get("done"))
@@ -199,7 +199,8 @@ if data["exam"]["date"]:
         for i in range(6):
             with cols[i]:
                 checked = st.checkbox(step_labels[i], value=chap["steps"][i], key=f"chap_{idx}_step_{i}")
-                chap["steps"][i] = checked
-    save_data_to_github(data)
+                if checked != chap["steps"][i]:
+                    chap["steps"][i] = checked
+                    save_data_to_github(data)
 
 st.write("✅ Änderungen werden automatisch in GitHub gespeichert.")
