@@ -60,7 +60,7 @@ def save_data_to_github(data):
     }
     requests.put(API_URL, headers=HEADERS, json=payload)
 
-# ------------------- Daten laden -------------------
+# ------------------- Session State initialisieren -------------------
 if "data" not in st.session_state:
     st.session_state["data"] = load_data_from_github()
 
