@@ -1,7 +1,8 @@
 import streamlit as st
 import json
-import os
 import datetime
+import requests
+import base64
 import plotly.express as px
 
 # ------------------- Dark Mode aktivieren -------------------
@@ -24,37 +25,50 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Datei für Persistenz
-DATA_FILE = "lernplan_dashboard.json"
+# ------------------- GitHub Secrets -------------------
+GITHUB_TOKEN = st.secrets["github"]["token"]
+REPO = st.secrets["github"]["repo"]
+FILE_PATH = st.secrets["github"]["path"]
+API_URL = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
+HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"}
 
-# Initialdaten laden oder erstellen
-def load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
+# ------------------- Funktionen für GitHub -------------------
+def load_data_from_github():
+    response = requests.get(API_URL, headers=HEADERS)
+    if response.status_code == 200:
+        content = response.json()["content"]
+        decoded = base64.b64decode(content).decode("utf-8")
+        return json.loads(decoded)
     else:
         return {
-            "tasks": [],  # manuelle Tagesaufgaben
-            "weekly_plan": [],  # Wochenplaner
-            "exam": {
-                "date": "",
-                "chapters": []
-            },
+            "tasks": [],
+            "weekly_plan": [],
+            "exam": {"date": "", "chapters": []},
             "points": 0,
             "last_update": str(datetime.date.today())
         }
 
-def save_data(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f)
+def save_data_to_github(data):
+    # Hole aktuellen SHA für Commit
+    get_resp = requests.get(API_URL, headers=HEADERS)
+    sha = get_resp.json().get("sha") if get_resp.status_code == 200 else None
 
-# Daten laden
-data = load_data()
+    encoded_content = base64.b64encode(json.dumps(data).encode("utf-8")).decode("utf-8")
+    payload = {
+        "message": "Update Lernplan Dashboard",
+        "content": encoded_content,
+        "sha": sha
+    }
+    put_resp = requests.put(API_URL, headers=HEADERS, json=payload)
+    return put_resp.status_code in [200, 201]
+
+# ------------------- Daten laden -------------------
+data = load_data_from_github()
 
 # Reset für neuen Tag
 if data["last_update"] != str(datetime.date.today()):
     data["last_update"] = str(datetime.date.today())
-    save_data(data)
+    save_data_to_github(data)
 
 # ------------------- Layout -------------------
 st.title("📚 Lernplan Dashboard – All-in-One")
@@ -74,17 +88,16 @@ with col1:
         add_task_btn = st.form_submit_button("Hinzufügen")
         if add_task_btn and task_name:
             data["tasks"].append({"name": task_name, "duration": task_duration, "done": task_done})
-            save_data(data)
+            save_data_to_github(data)
             st.success("Tagesaufgabe hinzugefügt!")
 
     # Berechnung: heutige Aufgaben aus Wochenplaner + manuelle Aufgaben
-    today = datetime.date.today().strftime("%A")  # z.B. Montag
+    today = datetime.date.today().strftime("%A")
     weekly_today = [wp for wp in data["weekly_plan"] if wp["day"] == today]
 
     total_duration = sum(task["duration"] for task in data["tasks"]) + sum(wp["duration"] for wp in weekly_today)
     completed_duration = sum(task["duration"] for task in data["tasks"] if task["done"])
 
-    # Tortendiagramm
     fig = px.pie(
         names=["Erledigt", "Offen"],
         values=[completed_duration, max(total_duration - completed_duration, 0)],
@@ -104,13 +117,12 @@ with col2:
         submitted = st.form_submit_button("Hinzufügen")
         if submitted and activity:
             data["weekly_plan"].append({"day": day, "activity": activity, "duration": duration, "done": False})
-            save_data(data)
+            save_data_to_github(data)
             st.success("Aktivität hinzugefügt!")
 
     if data["weekly_plan"]:
         st.table(data["weekly_plan"])
 
-    # Wochenziel berechnen
     weekly_total = sum(wp["duration"] for wp in data["weekly_plan"])
     weekly_completed = sum(wp["duration"] for wp in data["weekly_plan"] if wp.get("done"))
     st.write(f"📅 Woche: {weekly_completed}h von {weekly_total}h")
@@ -126,7 +138,7 @@ with st.form("exam_setup"):
         data["exam"]["date"] = str(exam_date)
         if not data["exam"]["chapters"] or len(data["exam"]["chapters"]) != chapters_count:
             data["exam"]["chapters"] = [{"name": f"Kapitel {i+1}", "steps": [False]*6} for i in range(chapters_count)]
-        save_data(data)
+        save_data_to_github(data)
         st.success("Klausurinformationen gespeichert!")
 
 if data["exam"]["date"]:
@@ -139,7 +151,6 @@ if data["exam"]["date"]:
     st.progress(progress / 100)
     st.write(f"Fortschritt: {progress:.1f}%")
 
-    # Anzeige der Kapitel und Schritte
     for idx, chap in enumerate(data["exam"]["chapters"]):
         st.write(f"**{chap['name']}**")
         cols = st.columns(6)
@@ -148,6 +159,6 @@ if data["exam"]["date"]:
             with cols[i]:
                 checked = st.checkbox(step_labels[i], value=chap["steps"][i], key=f"chap_{idx}_step_{i}")
                 chap["steps"][i] = checked
-    save_data(data)
+    save_data_to_github(data)
 
-st.write("✅ Änderungen werden automatisch gespeichert.")
+st.write("✅ Änderungen werden automatisch in GitHub gespeichert.")
