@@ -34,8 +34,8 @@ def load_data():
             return json.load(f)
     else:
         return {
-            "tasks": [],
-            "weekly_plan": [],
+            "tasks": [],  # manuelle Tagesaufgaben
+            "weekly_plan": [],  # Wochenplaner
             "exam": {
                 "date": "",
                 "chapters": []
@@ -58,20 +58,33 @@ if data["last_update"] != str(datetime.date.today()):
 
 # ------------------- Layout -------------------
 st.title("📚 Lernplan Dashboard – All-in-One")
-st.write("Aufgaben, Wochenplaner, Klausurfortschritt – mobil und cloud-ready!")
+st.write("Tagesfortschritt, Wochenplaner, Klausurvorbereitung – mobil und cloud-ready!")
 
 col1, col2 = st.columns([1, 1])
 
 # ------------------- Bereich 1: Tagesfortschritt -------------------
 with col1:
     st.subheader("Tagesfortschritt")
-    if data["tasks"]:
-        total_duration = sum(task["duration"] for task in data["tasks"])
-        completed_duration = sum(task["duration"] for task in data["tasks"] if task["done"])
-    else:
-        total_duration = 0
-        completed_duration = 0
 
+    # Formular für manuelle Tagesaufgaben
+    with st.form("add_task"):
+        task_name = st.text_input("Tagesaufgabe")
+        task_duration = st.number_input("Dauer (h)", min_value=0.5, step=0.5)
+        task_done = st.checkbox("Erledigt?")
+        add_task_btn = st.form_submit_button("Hinzufügen")
+        if add_task_btn and task_name:
+            data["tasks"].append({"name": task_name, "duration": task_duration, "done": task_done})
+            save_data(data)
+            st.success("Tagesaufgabe hinzugefügt!")
+
+    # Berechnung: heutige Aufgaben aus Wochenplaner + manuelle Aufgaben
+    today = datetime.date.today().strftime("%A")  # z.B. Montag
+    weekly_today = [wp for wp in data["weekly_plan"] if wp["day"] == today]
+
+    total_duration = sum(task["duration"] for task in data["tasks"]) + sum(wp["duration"] for wp in weekly_today)
+    completed_duration = sum(task["duration"] for task in data["tasks"] if task["done"])
+
+    # Tortendiagramm
     fig = px.pie(
         names=["Erledigt", "Offen"],
         values=[completed_duration, max(total_duration - completed_duration, 0)],
@@ -90,12 +103,18 @@ with col2:
         duration = st.number_input("Geplante Dauer (h)", min_value=0.5, step=0.5)
         submitted = st.form_submit_button("Hinzufügen")
         if submitted and activity:
-            data["weekly_plan"].append({"day": day, "activity": activity, "duration": duration})
+            data["weekly_plan"].append({"day": day, "activity": activity, "duration": duration, "done": False})
             save_data(data)
             st.success("Aktivität hinzugefügt!")
 
     if data["weekly_plan"]:
         st.table(data["weekly_plan"])
+
+    # Wochenziel berechnen
+    weekly_total = sum(wp["duration"] for wp in data["weekly_plan"])
+    weekly_completed = sum(wp["duration"] for wp in data["weekly_plan"] if wp.get("done"))
+    st.write(f"📅 Woche: {weekly_completed}h von {weekly_total}h")
+    st.progress(weekly_completed / weekly_total if weekly_total > 0 else 0)
 
 # ------------------- Bereich 3: Klausurfortschritt -------------------
 st.subheader("Klausurfortschritt")
