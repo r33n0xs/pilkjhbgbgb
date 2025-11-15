@@ -4,6 +4,10 @@ import datetime
 import requests
 import base64
 import plotly.express as px
+from streamlit_autorefresh import st_autorefresh
+
+# ------------------- Auto-Refresh alle 2 Sekunden -------------------
+st_autorefresh(interval=2000, limit=None, key="refresh")
 
 # ------------------- Dark Mode aktivieren -------------------
 st.set_page_config(page_title="Lernplan Dashboard", layout="wide")
@@ -44,6 +48,8 @@ def save_data_to_github(data):
 # ------------------- Session State initialisieren -------------------
 if "data" not in st.session_state:
     st.session_state["data"] = load_data_from_github()
+if "delete_flag" not in st.session_state:
+    st.session_state["delete_flag"] = False
 
 data = st.session_state["data"]
 
@@ -136,7 +142,7 @@ for idx, task in enumerate(data["tasks"]):
     with col_del:
         if st.button("🗑️", key=f"del_task_{idx}"):
             data["tasks"].pop(idx)
-            st.experimental_rerun()
+            st.session_state["delete_flag"] = True
 
 st.subheader("Wochenplan")
 for idx, wp in enumerate(data["weekly_plan"]):
@@ -146,7 +152,7 @@ for idx, wp in enumerate(data["weekly_plan"]):
     with col_del:
         if st.button("🗑️", key=f"del_wp_{idx}"):
             data["weekly_plan"].pop(idx)
-            st.experimental_rerun()
+            st.session_state["delete_flag"] = True
 
 # ------------------- Klausurverwaltung -------------------
 st.subheader("Klausurverwaltung")
@@ -172,9 +178,14 @@ for idx, chap in enumerate(data["exam"]["chapters"]):
             data["exam"]["chapters"][idx]["steps"][i] = st.checkbox(step_labels[i], value=chap["steps"][i], key=f"chap_{idx}_step_{i}")
     if st.button("🗑️ Kapitel löschen", key=f"del_chap_{idx}"):
         data["exam"]["chapters"].pop(idx)
-        st.experimental_rerun()
+        st.session_state["delete_flag"] = True
 
 # ------------------- Speichern-Button -------------------
 if st.button("💾 Änderungen in GitHub speichern"):
     save_data_to_github(data)
     st.success("Alle Änderungen wurden gespeichert!")
+
+# ------------------- Sicherer Rerun nach Löschung -------------------
+if st.session_state["delete_flag"]:
+    st.session_state["delete_flag"] = False
+    st.experimental_rerun()
