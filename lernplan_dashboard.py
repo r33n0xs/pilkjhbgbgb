@@ -98,18 +98,43 @@ with col1:
         save_data_to_github(data)
 
     # Berechnung: heutige Aufgaben aus Wochenplaner + manuelle Aufgaben
-    today = datetime.date.today().strftime("%A")
+    today_en = datetime.date.today().strftime("%A")
+    mapping = {
+        "Monday": "Montag",
+        "Tuesday": "Dienstag",
+        "Wednesday": "Mittwoch",
+        "Thursday": "Donnerstag",
+        "Friday": "Freitag",
+        "Saturday": "Samstag",
+        "Sunday": "Sonntag"
+    }
+    today = mapping.get(today_en, today_en)
+
     weekly_today = [wp for wp in data["weekly_plan"] if wp["day"] == today]
 
     total_duration = sum(task["duration"] for task in data["tasks"]) + sum(wp["duration"] for wp in weekly_today)
     completed_duration = sum(task["duration"] for task in data["tasks"] if task["done"])
 
-    fig = px.pie(
-        names=["Erledigt", "Offen"],
-        values=[completed_duration, max(total_duration - completed_duration, 0)],
-        title="Tagesfortschritt",
-        color_discrete_sequence=["#00cc96", "#ef553b"]
-    )
+    # Debug-Ausgabe
+    st.write(f"DEBUG: total_duration={total_duration}, completed_duration={completed_duration}, today={today}")
+
+    # Diagramm anzeigen (auch wenn leer)
+    if total_duration > 0:
+        fig = px.pie(
+            names=["Erledigt", "Offen"],
+            values=[completed_duration, max(total_duration - completed_duration, 0)],
+            title="Tagesfortschritt",
+            color_discrete_sequence=["#00cc96", "#ef553b"]
+        )
+    else:
+        # Leeres Diagramm mit neutraler Farbe
+        fig = px.pie(
+            names=["Keine Daten"],
+            values=[1],
+            title="Tagesfortschritt (Keine Aufgaben)",
+            color_discrete_sequence=["#636EFA"]  # neutrale Farbe
+        )
+
     st.plotly_chart(fig, use_container_width=True)
     st.write(f"✅ Erledigt: {completed_duration}h / 🎯 Ziel: {total_duration}h")
 
