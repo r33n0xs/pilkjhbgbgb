@@ -12,8 +12,8 @@ st.markdown("""
         body { background-color: #0e1117; color: #fafafa; }
         .stApp { background-color: #0e1117; }
         h1, h2, h3, h4, h5, h6, p, label { color: #fafafa !important; }
-        .css-1d391kg, .css-1v3fvcr { background-color: #262730 !important; }
         .delete-btn { color: #ef553b; font-weight: bold; }
+        .card { padding: 15px; border-radius: 10px; background-color: #262730; margin-bottom: 20px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -51,6 +51,30 @@ data = st.session_state["data"]
 st.title("📚 Lernplan Dashboard – All-in-One")
 st.write("Tagesfortschritt, Wochenplaner, Klausurvorbereitung – mobil und cloud-ready!")
 
+# ------------------- Eingabeformulare -------------------
+col_form1, col_form2 = st.columns([1, 1])
+
+with col_form1:
+    st.subheader("➕ Tagesaufgabe hinzufügen")
+    with st.form("add_task"):
+        task_name = st.text_input("Tagesaufgabe")
+        task_duration = st.number_input("Dauer (h)", min_value=0.5, step=0.5)
+        add_task_btn = st.form_submit_button("Hinzufügen")
+        if add_task_btn and task_name:
+            data["tasks"].append({"name": task_name, "duration": task_duration, "done": False})
+            st.success("Tagesaufgabe hinzugefügt!")
+
+with col_form2:
+    st.subheader("➕ Wochenaufgabe hinzufügen")
+    with st.form("add_weekly_task"):
+        day = st.selectbox("Tag", ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"])
+        activity = st.text_input("Lerntätigkeit")
+        duration = st.number_input("Geplante Dauer (h)", min_value=0.5, step=0.5)
+        submitted = st.form_submit_button("Hinzufügen")
+        if submitted and activity:
+            data["weekly_plan"].append({"day": day, "activity": activity, "duration": duration, "done": False})
+            st.success("Wochenaufgabe hinzugefügt!")
+
 # ------------------- Tagesfortschritt berechnen -------------------
 today_en = datetime.date.today().strftime("%A")
 mapping = {"Monday": "Montag", "Tuesday": "Dienstag", "Wednesday": "Mittwoch", "Thursday": "Donnerstag", "Friday": "Freitag", "Saturday": "Samstag", "Sunday": "Sonntag"}
@@ -70,6 +94,7 @@ steps_left = total_steps - completed_steps
 daily_target = steps_left / days_left if days_left > 0 else steps_left
 
 # ------------------- Diagramme nebeneinander -------------------
+st.markdown('<div class="card">', unsafe_allow_html=True)
 col_left, col_right = st.columns(2)
 
 with col_left:
@@ -93,10 +118,11 @@ with col_right:
     st.plotly_chart(fig_exam, use_container_width=True)
     st.progress(progress_exam / 100)
     st.write(f"✅ {completed_steps}/{total_steps} Schritte")
+st.markdown('</div>', unsafe_allow_html=True)
 
 # ------------------- Warnung Soll/Ist -------------------
 if days_left > 0 and steps_left > 0:
-    if daily_target > 6:  # Beispiel: Warnung, wenn unrealistisch viel pro Tag
+    if daily_target > 6:
         st.error(f"⚠️ Du bist im Rückstand! Du müsstest **{daily_target:.1f} Schritte pro Tag** schaffen.")
     else:
         st.info(f"📈 Du musst **{daily_target:.1f} Schritte pro Tag** erledigen, um rechtzeitig fertig zu sein.")
@@ -110,6 +136,16 @@ for idx, task in enumerate(data["tasks"]):
     with col_del:
         if st.button("🗑️", key=f"del_task_{idx}"):
             data["tasks"].pop(idx)
+            st.experimental_rerun()
+
+st.subheader("Wochenplan")
+for idx, wp in enumerate(data["weekly_plan"]):
+    col_wp, col_del = st.columns([4, 1])
+    with col_wp:
+        data["weekly_plan"][idx]["done"] = st.checkbox(f"{wp['day']}: {wp['activity']} ({wp['duration']}h)", value=wp["done"], key=f"wp_{idx}")
+    with col_del:
+        if st.button("🗑️", key=f"del_wp_{idx}"):
+            data["weekly_plan"].pop(idx)
             st.experimental_rerun()
 
 # ------------------- Klausurverwaltung -------------------
@@ -127,7 +163,6 @@ with st.form("exam_setup"):
         save_data_to_github(data)
         st.success("Klausurinformationen gespeichert!")
 
-# Kapitel-Checkboxen + Löschoption
 step_labels = ["Lesen", "Fragen", "25%", "50%", "75%", "100%"]
 for idx, chap in enumerate(data["exam"]["chapters"]):
     st.write(f"**{chap['name']}**")
@@ -135,14 +170,9 @@ for idx, chap in enumerate(data["exam"]["chapters"]):
     for i in range(6):
         with cols[i]:
             data["exam"]["chapters"][idx]["steps"][i] = st.checkbox(step_labels[i], value=chap["steps"][i], key=f"chap_{idx}_step_{i}")
-    if st.button("Kapitel löschen", key=f"del_chap_{idx}"):
+    if st.button("🗑️ Kapitel löschen", key=f"del_chap_{idx}"):
         data["exam"]["chapters"].pop(idx)
         st.experimental_rerun()
-
-# Klausur komplett löschen
-if st.button("❌ Klausur zurücksetzen"):
-    data["exam"] = {"name": "", "date": "", "chapters": []}
-    st.experimental_rerun()
 
 # ------------------- Speichern-Button -------------------
 if st.button("💾 Änderungen in GitHub speichern"):
