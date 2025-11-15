@@ -49,7 +49,6 @@ def load_data_from_github():
         }
 
 def save_data_to_github(data):
-    # Hole aktuellen SHA für Commit
     get_resp = requests.get(API_URL, headers=HEADERS)
     sha = get_resp.json().get("sha") if get_resp.status_code == 200 else None
 
@@ -84,12 +83,19 @@ with col1:
     with st.form("add_task"):
         task_name = st.text_input("Tagesaufgabe")
         task_duration = st.number_input("Dauer (h)", min_value=0.5, step=0.5)
-        task_done = st.checkbox("Erledigt?")
         add_task_btn = st.form_submit_button("Hinzufügen")
         if add_task_btn and task_name:
-            data["tasks"].append({"name": task_name, "duration": task_duration, "done": task_done})
+            data["tasks"].append({"name": task_name, "duration": task_duration, "done": False})
             save_data_to_github(data)
             st.success("Tagesaufgabe hinzugefügt!")
+
+    # Checkboxen für Tagesaufgaben
+    if data["tasks"]:
+        st.write("### Tagesaufgaben")
+        for idx, task in enumerate(data["tasks"]):
+            checked = st.checkbox(f"{task['name']} ({task['duration']}h)", value=task["done"], key=f"task_{idx}")
+            task["done"] = checked
+        save_data_to_github(data)
 
     # Berechnung: heutige Aufgaben aus Wochenplaner + manuelle Aufgaben
     today = datetime.date.today().strftime("%A")
@@ -121,7 +127,11 @@ with col2:
             st.success("Aktivität hinzugefügt!")
 
     if data["weekly_plan"]:
-        st.table(data["weekly_plan"])
+        st.write("### Wochenplan")
+        for idx, wp in enumerate(data["weekly_plan"]):
+            checked = st.checkbox(f"{wp['day']}: {wp['activity']} ({wp['duration']}h)", value=wp["done"], key=f"wp_{idx}")
+            wp["done"] = checked
+        save_data_to_github(data)
 
     weekly_total = sum(wp["duration"] for wp in data["weekly_plan"])
     weekly_completed = sum(wp["duration"] for wp in data["weekly_plan"] if wp.get("done"))
