@@ -69,32 +69,11 @@ with col1:
     if data["tasks"]:
         st.write("### Tagesaufgaben")
         for idx, task in enumerate(data["tasks"]):
-            data["tasks"][idx]["done"] = st.checkbox(f"{task['name']} ({task['duration']}h)", value=task["done"], key=f"task_{idx}")
-
-    # Berechnung Tagesfortschritt
-    today_en = datetime.date.today().strftime("%A")
-    mapping = {"Monday": "Montag", "Tuesday": "Dienstag", "Wednesday": "Mittwoch", "Thursday": "Donnerstag", "Friday": "Freitag", "Saturday": "Samstag", "Sunday": "Sonntag"}
-    today = mapping.get(today_en, today_en)
-    weekly_today = [wp for wp in data["weekly_plan"] if wp["day"] == today]
-
-    total_duration = sum(t["duration"] for t in data["tasks"]) + sum(wp["duration"] for wp in weekly_today)
-    completed_duration = sum(t["duration"] for t in data["tasks"] if t["done"]) + sum(wp["duration"] for wp in weekly_today if wp["done"])
-    progress_ratio = completed_duration / total_duration if total_duration > 0 else 0
-
-    # Donut-Chart mit Prozentanzeige
-    if total_duration > 0:
-        fig = px.pie(
-            names=["Erledigt", "Offen"],
-            values=[completed_duration, max(total_duration - completed_duration, 0)],
-            hole=0.5,
-            title=f"Tagesfortschritt ({progress_ratio*100:.0f}%)",
-            color_discrete_sequence=["#00cc96", "#ef553b"]
-        )
-    else:
-        fig = px.pie(names=["Keine Daten"], values=[1], hole=0.5, title="Tagesfortschritt (Keine Aufgaben)", color_discrete_sequence=["#636EFA"])
-    st.plotly_chart(fig, use_container_width=True)
-    st.progress(progress_ratio)
-    st.write(f"✅ Erledigt: {completed_duration}h / 🎯 Ziel: {total_duration}h")
+            st.session_state["data"]["tasks"][idx]["done"] = st.checkbox(
+                f"{task['name']} ({task['duration']}h)",
+                value=task["done"],
+                key=f"task_{idx}"
+            )
 
 # ------------------- Bereich 2: Wochenplaner -------------------
 with col2:
@@ -111,42 +90,36 @@ with col2:
     if data["weekly_plan"]:
         st.write("### Wochenplan")
         for idx, wp in enumerate(data["weekly_plan"]):
-            data["weekly_plan"][idx]["done"] = st.checkbox(f"{wp['day']}: {wp['activity']} ({wp['duration']}h)", value=wp["done"], key=f"wp_{idx}")
+            st.session_state["data"]["weekly_plan"][idx]["done"] = st.checkbox(
+                f"{wp['day']}: {wp['activity']} ({wp['duration']}h)",
+                value=wp["done"],
+                key=f"wp_{idx}"
+            )
 
-    weekly_total = sum(wp["duration"] for wp in data["weekly_plan"])
-    weekly_completed = sum(wp["duration"] for wp in data["weekly_plan"] if wp["done"])
-    st.write(f"📅 Woche: {weekly_completed}h von {weekly_total}h")
-    st.progress(weekly_completed / weekly_total if weekly_total > 0 else 0)
+# ------------------- Fortschritt berechnen (nach allen Updates) -------------------
+today_en = datetime.date.today().strftime("%A")
+mapping = {"Monday": "Montag", "Tuesday": "Dienstag", "Wednesday": "Mittwoch", "Thursday": "Donnerstag", "Friday": "Freitag", "Saturday": "Samstag", "Sunday": "Sonntag"}
+today = mapping.get(today_en, today_en)
+weekly_today = [wp for wp in data["weekly_plan"] if wp["day"] == today]
 
-# ------------------- Bereich 3: Klausurfortschritt -------------------
-st.subheader("Klausurfortschritt")
-with st.form("exam_setup"):
-    exam_date = st.date_input("Klausurdatum", value=datetime.date.today())
-    chapters_count = st.number_input("Anzahl Kapitel", min_value=1, step=1)
-    setup_submitted = st.form_submit_button("Speichern")
-    if setup_submitted:
-        data["exam"]["date"] = str(exam_date)
-        if not data["exam"]["chapters"] or len(data["exam"]["chapters"]) != chapters_count:
-            data["exam"]["chapters"] = [{"name": f"Kapitel {i+1}", "steps": [False]*6} for i in range(chapters_count)]
-        st.success("Klausurinformationen gespeichert!")
+total_duration = sum(t["duration"] for t in data["tasks"]) + sum(wp["duration"] for wp in weekly_today)
+completed_duration = sum(t["duration"] for t in data["tasks"] if t["done"]) + sum(wp["duration"] for wp in weekly_today if wp["done"])
+progress_ratio = completed_duration / total_duration if total_duration > 0 else 0
 
-if data["exam"]["date"]:
-    days_left = (datetime.datetime.strptime(data["exam"]["date"], "%Y-%m-%d").date() - datetime.date.today()).days
-    st.write(f"📅 Noch {days_left} Tage bis zur Klausur")
-
-    total_steps = len(data["exam"]["chapters"]) * 6
-    completed_steps = sum(sum(1 for step in chap["steps"] if step) for chap in data["exam"]["chapters"])
-    progress = (completed_steps / total_steps) * 100 if total_steps > 0 else 0
-    st.progress(progress / 100)
-    st.write(f"Fortschritt: {progress:.1f}%")
-
-    for idx, chap in enumerate(data["exam"]["chapters"]):
-        st.write(f"**{chap['name']}**")
-        cols = st.columns(6)
-        step_labels = ["Lesen", "Fragen", "25%", "50%", "75%", "100%"]
-        for i in range(6):
-            with cols[i]:
-                data["exam"]["chapters"][idx]["steps"][i] = st.checkbox(step_labels[i], value=chap["steps"][i], key=f"chap_{idx}_step_{i}")
+# Donut-Chart mit Prozentanzeige
+if total_duration > 0:
+    fig = px.pie(
+        names=["Erledigt", "Offen"],
+        values=[completed_duration, max(total_duration - completed_duration, 0)],
+        hole=0.5,
+        title=f"Tagesfortschritt ({progress_ratio*100:.0f}%)",
+        color_discrete_sequence=["#00cc96", "#ef553b"]
+    )
+else:
+    fig = px.pie(names=["Keine Daten"], values=[1], hole=0.5, title="Tagesfortschritt (Keine Aufgaben)", color_discrete_sequence=["#636EFA"])
+st.plotly_chart(fig, use_container_width=True)
+st.progress(progress_ratio)
+st.write(f"✅ Erledigt: {completed_duration}h / 🎯 Ziel: {total_duration}h")
 
 # ------------------- Speichern-Button -------------------
 if st.button("💾 Änderungen in GitHub speichern"):
