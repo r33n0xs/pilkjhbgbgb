@@ -31,7 +31,7 @@ def load_data_from_github():
         decoded = base64.b64decode(content).decode("utf-8")
         return json.loads(decoded)
     else:
-        return {"tasks": [], "weekly_plan": [], "exam": {"date": "", "chapters": []}, "last_update": str(datetime.date.today())}
+        return {"tasks": [], "weekly_plan": [], "exam": {"name": "", "date": "", "chapters": []}, "last_update": str(datetime.date.today())}
 
 def save_data_to_github(data):
     get_resp = requests.get(API_URL, headers=HEADERS)
@@ -69,11 +69,7 @@ with col1:
     if data["tasks"]:
         st.write("### Tagesaufgaben")
         for idx, task in enumerate(data["tasks"]):
-            st.session_state["data"]["tasks"][idx]["done"] = st.checkbox(
-                f"{task['name']} ({task['duration']}h)",
-                value=task["done"],
-                key=f"task_{idx}"
-            )
+            data["tasks"][idx]["done"] = st.checkbox(f"{task['name']} ({task['duration']}h)", value=task["done"], key=f"task_{idx}")
 
 # ------------------- Bereich 2: Wochenplaner -------------------
 with col2:
@@ -90,11 +86,7 @@ with col2:
     if data["weekly_plan"]:
         st.write("### Wochenplan")
         for idx, wp in enumerate(data["weekly_plan"]):
-            st.session_state["data"]["weekly_plan"][idx]["done"] = st.checkbox(
-                f"{wp['day']}: {wp['activity']} ({wp['duration']}h)",
-                value=wp["done"],
-                key=f"wp_{idx}"
-            )
+            data["weekly_plan"][idx]["done"] = st.checkbox(f"{wp['day']}: {wp['activity']} ({wp['duration']}h)", value=wp["done"], key=f"wp_{idx}")
 
 # ------------------- Fortschritt berechnen -------------------
 today_en = datetime.date.today().strftime("%A")
@@ -122,12 +114,14 @@ st.progress(progress_ratio)
 st.write(f"✅ Erledigt: {completed_duration}h / 🎯 Ziel: {total_duration}h")
 
 # ------------------- Bereich 3: Klausurfortschritt -------------------
-st.subheader("Klausurfortschritt")
+st.subheader("Klausurvorbereitung")
 with st.form("exam_setup"):
+    exam_name = st.text_input("Name der Klausur", value=data["exam"].get("name", ""))
     exam_date = st.date_input("Klausurdatum", value=datetime.date.today() if not data["exam"]["date"] else datetime.datetime.strptime(data["exam"]["date"], "%Y-%m-%d").date())
     chapters_count = st.number_input("Anzahl Kapitel", min_value=1, step=1, value=len(data["exam"]["chapters"]) if data["exam"]["chapters"] else 1)
     setup_submitted = st.form_submit_button("Speichern")
     if setup_submitted:
+        data["exam"]["name"] = exam_name
         data["exam"]["date"] = str(exam_date)
         if not data["exam"]["chapters"] or len(data["exam"]["chapters"]) != chapters_count:
             data["exam"]["chapters"] = [{"name": f"Kapitel {i+1}", "steps": [False]*6} for i in range(chapters_count)]
@@ -135,6 +129,7 @@ with st.form("exam_setup"):
         st.success("Klausurinformationen gespeichert!")
 
 if data["exam"]["date"]:
+    st.write(f"📚 **{data['exam'].get('name', 'Klausur')}** – Datum: {data['exam']['date']}")
     days_left = (datetime.datetime.strptime(data["exam"]["date"], "%Y-%m-%d").date() - datetime.date.today()).days
     st.write(f"📅 Noch {days_left} Tage bis zur Klausur")
 
@@ -144,10 +139,10 @@ if data["exam"]["date"]:
     st.progress(progress / 100)
     st.write(f"Fortschritt: {progress:.1f}%")
 
+    step_labels = ["Lesen", "Fragen", "25%", "50%", "75%", "100%"]
     for idx, chap in enumerate(data["exam"]["chapters"]):
         st.write(f"**{chap['name']}**")
         cols = st.columns(6)
-        step_labels = ["Lesen", "Fragen", "25%", "50%", "75%", "100%"]
         for i in range(6):
             with cols[i]:
                 data["exam"]["chapters"][idx]["steps"][i] = st.checkbox(step_labels[i], value=chap["steps"][i], key=f"chap_{idx}_step_{i}")
