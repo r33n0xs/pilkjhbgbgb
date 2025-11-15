@@ -81,11 +81,17 @@ with col1:
     completed_duration = sum(t["duration"] for t in data["tasks"] if t["done"]) + sum(wp["duration"] for wp in weekly_today if wp["done"])
     progress_ratio = completed_duration / total_duration if total_duration > 0 else 0
 
-    # Diagramm
+    # Donut-Chart mit Prozentanzeige
     if total_duration > 0:
-        fig = px.pie(names=["Erledigt", "Offen"], values=[completed_duration, max(total_duration - completed_duration, 0)], title="Tagesfortschritt", color_discrete_sequence=["#00cc96", "#ef553b"])
+        fig = px.pie(
+            names=["Erledigt", "Offen"],
+            values=[completed_duration, max(total_duration - completed_duration, 0)],
+            hole=0.5,
+            title=f"Tagesfortschritt ({progress_ratio*100:.0f}%)",
+            color_discrete_sequence=["#00cc96", "#ef553b"]
+        )
     else:
-        fig = px.pie(names=["Keine Daten"], values=[1], title="Tagesfortschritt (Keine Aufgaben)", color_discrete_sequence=["#636EFA"])
+        fig = px.pie(names=["Keine Daten"], values=[1], hole=0.5, title="Tagesfortschritt (Keine Aufgaben)", color_discrete_sequence=["#636EFA"])
     st.plotly_chart(fig, use_container_width=True)
     st.progress(progress_ratio)
     st.write(f"✅ Erledigt: {completed_duration}h / 🎯 Ziel: {total_duration}h")
