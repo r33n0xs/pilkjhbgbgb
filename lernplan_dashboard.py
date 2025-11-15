@@ -91,14 +91,15 @@ with col1:
             save_data_to_github(data)
             st.success("Tagesaufgabe hinzugefügt!")
 
-    # Checkboxen für Tagesaufgaben
+    # Checkboxen für Tagesaufgaben (direkte Zuweisung)
     if data["tasks"]:
         st.write("### Tagesaufgaben")
         for idx, task in enumerate(data["tasks"]):
-            checked = st.checkbox(f"{task['name']} ({task['duration']}h)", value=task["done"], key=f"task_{idx}")
-            if checked != task["done"]:
-                task["done"] = checked
-                save_data_to_github(data)
+            data["tasks"][idx]["done"] = st.checkbox(
+                f"{task['name']} ({task['duration']}h)",
+                value=task["done"],
+                key=f"task_{idx}"
+            )
 
     # Berechnung: heutige Aufgaben aus Wochenplaner + manuelle Aufgaben
     today_en = datetime.date.today().strftime("%A")
@@ -143,6 +144,9 @@ with col1:
     st.progress(progress_ratio)
     st.write(f"✅ Erledigt: {completed_duration}h / 🎯 Ziel: {total_duration}h")
 
+    # Speichern nach jeder Änderung
+    save_data_to_github(data)
+
 # ------------------- Bereich 2: Wochenplaner -------------------
 with col2:
     st.subheader("Wochenplaner")
@@ -159,15 +163,19 @@ with col2:
     if data["weekly_plan"]:
         st.write("### Wochenplan")
         for idx, wp in enumerate(data["weekly_plan"]):
-            checked = st.checkbox(f"{wp['day']}: {wp['activity']} ({wp['duration']}h)", value=wp["done"], key=f"wp_{idx}")
-            if checked != wp["done"]:
-                wp["done"] = checked
-                save_data_to_github(data)
+            data["weekly_plan"][idx]["done"] = st.checkbox(
+                f"{wp['day']}: {wp['activity']} ({wp['duration']}h)",
+                value=wp["done"],
+                key=f"wp_{idx}"
+            )
 
     weekly_total = sum(wp["duration"] for wp in data["weekly_plan"])
     weekly_completed = sum(wp["duration"] for wp in data["weekly_plan"] if wp.get("done"))
     st.write(f"📅 Woche: {weekly_completed}h von {weekly_total}h")
     st.progress(weekly_completed / weekly_total if weekly_total > 0 else 0)
+
+    # Speichern nach jeder Änderung
+    save_data_to_github(data)
 
 # ------------------- Bereich 3: Klausurfortschritt -------------------
 st.subheader("Klausurfortschritt")
@@ -198,9 +206,12 @@ if data["exam"]["date"]:
         step_labels = ["Lesen", "Fragen", "25%", "50%", "75%", "100%"]
         for i in range(6):
             with cols[i]:
-                checked = st.checkbox(step_labels[i], value=chap["steps"][i], key=f"chap_{idx}_step_{i}")
-                if checked != chap["steps"][i]:
-                    chap["steps"][i] = checked
-                    save_data_to_github(data)
+                data["exam"]["chapters"][idx]["steps"][i] = st.checkbox(
+                    step_labels[i],
+                    value=chap["steps"][i],
+                    key=f"chap_{idx}_step_{i}"
+                )
+
+    save_data_to_github(data)
 
 st.write("✅ Änderungen werden automatisch in GitHub gespeichert.")
