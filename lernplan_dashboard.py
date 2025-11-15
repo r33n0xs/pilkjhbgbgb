@@ -113,10 +113,15 @@ with col1:
     weekly_today = [wp for wp in data["weekly_plan"] if wp["day"] == today]
 
     total_duration = sum(task["duration"] for task in data["tasks"]) + sum(wp["duration"] for wp in weekly_today)
-    completed_duration = sum(task["duration"] for task in data["tasks"] if task["done"])
+    completed_duration = (
+        sum(task["duration"] for task in data["tasks"] if task["done"]) +
+        sum(wp["duration"] for wp in weekly_today if wp.get("done"))
+    )
+
+    progress_ratio = completed_duration / total_duration if total_duration > 0 else 0
 
     # Debug-Ausgabe
-    st.write(f"DEBUG: total_duration={total_duration}, completed_duration={completed_duration}, today={today}")
+    st.write(f"DEBUG: total={total_duration}, completed={completed_duration}, ratio={progress_ratio:.2f}")
 
     # Diagramm anzeigen (auch wenn leer)
     if total_duration > 0:
@@ -132,10 +137,11 @@ with col1:
             names=["Keine Daten"],
             values=[1],
             title="Tagesfortschritt (Keine Aufgaben)",
-            color_discrete_sequence=["#636EFA"]  # neutrale Farbe
+            color_discrete_sequence=["#636EFA"]
         )
 
     st.plotly_chart(fig, use_container_width=True)
+    st.progress(progress_ratio)
     st.write(f"✅ Erledigt: {completed_duration}h / 🎯 Ziel: {total_duration}h")
 
 # ------------------- Bereich 2: Wochenplaner -------------------
